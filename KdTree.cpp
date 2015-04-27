@@ -1,26 +1,28 @@
 #include "KdTree.h"
 #include "Statistics.h"
+#include "Measurement.h"
+#include <cmath>
 #include "assert.h"
 
 namespace std {
     
     KdTreeNode::KdTreeNode() {
-        
+        this->initRelatedTreeNode();
     }
     
     KdTreeNode::KdTreeNode(const vector<FeatureType>& features):features(features) {
-        
+        this->initRelatedTreeNode();
     }
     
     KdTreeNode::KdTreeNode(const vector<FeatureType>& features, NodeCategory category):features(features), category(category) {
-        
+        this->initRelatedTreeNode();
     }
     
     KdTreeNode::~KdTreeNode() {
         
     }
     
-    KdTreeNode::KdTreeNode(const KdTreeNode& rhs):features(rhs.features), category(rhs.category), leftChild(rhs.leftChild), rightChild(rhs.rightChild) {
+    KdTreeNode::KdTreeNode(const KdTreeNode& rhs):splitFeatureIndex(rhs.splitFeatureIndex), features(rhs.features), category(rhs.category), parent(rhs.parent), leftChild(rhs.leftChild), rightChild(rhs.rightChild) {
         
     }
     
@@ -32,10 +34,26 @@ namespace std {
     
     void KdTreeNode::swap(KdTreeNode& other) {
         using std::swap;
+        swap(this->splitFeatureIndex, other.splitFeatureIndex);
         swap(this->features, other.features);
         swap(this->category, other.category);
+        swap(this->parent, other.parent);
         swap(this->leftChild, other.leftChild);
         swap(this->rightChild, other.rightChild);
+    }
+    
+    void KdTreeNode::initRelatedTreeNode() {
+        this->parent = NULL;
+        this->leftChild = NULL;
+        this->rightChild = NULL;
+    }
+    
+    const FeatureIndexType KdTreeNode::getSplitFeatureIndex() const {
+        return this->splitFeatureIndex;
+    }
+    
+    void KdTreeNode::setSplitFeatureIndex(FeatureIndexType splitFeatureIndex) {
+        this->splitFeatureIndex = splitFeatureIndex;
     }
     
     void KdTreeNode::setCategory(NodeCategory category) {
@@ -46,6 +64,17 @@ namespace std {
         return this->category;
     }
     
+    FeatureType KdTreeNode::getSplitFeature() const {
+        
+        assert(this->features.size() > this->splitFeatureIndex);
+        
+        return this->features.at(this->splitFeatureIndex);
+    }
+    
+    void KdTreeNode::setParent(KdTreeNode* node) {
+        this->parent = node;
+    }
+    
     void KdTreeNode::setLeftChild(KdTreeNode* node) {
         this->leftChild = node;
     }
@@ -54,12 +83,27 @@ namespace std {
         this->rightChild = node;
     }
     
+    KdTreeNode* KdTreeNode::getParent() const {
+        return this->parent;
+    }
+    
     KdTreeNode* KdTreeNode::getLeftChild() const {
         return this->leftChild;
     }
     
     KdTreeNode* KdTreeNode::getRightChild() const {
         return this->rightChild;
+    }
+    
+    const bool KdTreeNode::isLeafNode() const {
+        
+        bool result = false;
+        
+        if (this->leftChild == NULL && this->rightChild == NULL) {
+            result = true;
+        }
+        
+        return result;
     }
     
     KdTree::KdTree() {
@@ -110,11 +154,20 @@ namespace std {
         vector<KdTreeNode> leftTree = this->getLeftTree(nodes, *node, splitDimensionIndex);
         vector<KdTreeNode> rightTree = this->getRightTree(nodes, *node, splitDimensionIndex);
         
+        node->setSplitFeatureIndex(splitDimensionIndex);
+        
         KdTreeNode *leftTreeRootNode = (this->buildTree(leftTree));
         node->setLeftChild(leftTreeRootNode);
+        if (leftTreeRootNode != NULL) {
+            leftTreeRootNode->setParent(node);
+        }
+        
         
         KdTreeNode *rightTreeRootNode = (this->buildTree(rightTree));
         node->setRightChild(rightTreeRootNode);
+        if (rightTreeRootNode != NULL) {
+            rightTreeRootNode->setParent(node);
+        }
         
         return node;
     }
@@ -175,6 +228,197 @@ namespace std {
         swap(nodes.at(index0), nodes.at(up));
         
         return index0;
+    }
+    
+    KdTreeNode* KdTree::nearestNode(const vector<FeatureType>& features) {
+        
+        if (this->rootNode == NULL) {
+            return NULL;
+        }
+        
+        KdTreeNode* node = this->nearestLeafNode(features);
+        
+        NodeDistanceType distance = Measurement::euclideanDistance(features, node->getFeatures());
+        
+        KdTreeNode* searchPathDirectionNode = node;
+        KdTreeNode* searchPathNode = node->getParent();
+        
+        //Do search until root.
+        while (searchPathNode != NULL) {
+            
+            if (this->isSearchNeededInBranch(distance, features, searchPathNode) == true) {
+                
+                KdTreeNode* branchNode = this->nearestNodeInBranch(features, searchPathDirectionNode, searchPathNode);
+                
+                if (branchNode != NULL) {
+                    
+                    NodeDistanceType branchDistance = Measurement::euclideanDistance(features, branchNode->getFeatures());
+                    
+                    if (branchDistance < distance) {
+                        distance = branchDistance;
+                        node = branchNode;
+                    }
+                }
+            }
+            
+            searchPathDirectionNode = searchPathNode;
+            searchPathNode = searchPathNode->getParent();
+        }
+        
+        return node;
+    }
+    
+    KdTreeNode* KdTree::nearestLeafNode(const vector<FeatureType>& features) {
+        
+        KdTreeNode* node = this->rootNode;
+        
+        while (node->isLeafNode() == false) {
+            
+            FeatureIndexType splitFeatureIndex = node->getSplitFeatureIndex();
+            
+            if (node->getSplitFeature() < features.at(splitFeatureIndex)) {
+                
+                if (node->getLeftChild() == NULL) {
+                    break;
+                }
+                
+                node = node->getLeftChild();
+            } else {
+                
+                if (node->getRightChild() == NULL) {
+                    break;
+                }
+                
+                node = node->getRightChild();
+            }
+        }
+        
+        return node;
+    }
+    
+    const bool KdTree::isSearchNeededInBranch(NodeDistanceType nodeDistance, const vector<FeatureType>& features, KdTreeNode* parent) const {
+        
+        bool result = false;
+        
+        if (parent != NULL) {
+            
+            FeatureIndexType splitFeatureIndex = parent->getSplitFeatureIndex();
+            
+            NodeDistanceType splitFeatureDistance = fabs(features.at(splitFeatureIndex) - parent->getFeatures().at(splitFeatureIndex));
+            
+            //Ingore the same node distance between parent.
+            if (nodeDistance > splitFeatureDistance) {
+                result = true;
+            }
+        }
+        
+        return result;
+    }
+    
+    KdTreeNode* KdTree::nearestNodeInBranch(const vector<FeatureType>& features, KdTreeNode* node, KdTreeNode* parent) {
+        
+        KdTreeNode* nearestNode = parent;
+        
+        if (parent != NULL) {
+            
+            NodeDistanceType distance = Measurement::euclideanDistance(features, parent->getFeatures());
+            
+            KdTreeNode* subTreeNode = NULL;
+            
+            if (node == parent->getLeftChild()) {
+                subTreeNode = this->nearestNodeInSubTree(features, parent->getRightChild());
+            } else {
+                subTreeNode = this->nearestNodeInSubTree(features, parent->getLeftChild());
+            }
+            
+            if (subTreeNode != NULL) {
+                NodeDistanceType subTreeNodeDistance = Measurement::euclideanDistance(features, subTreeNode->getFeatures());
+                
+                if (subTreeNodeDistance < distance) {
+                    nearestNode = subTreeNode;
+                }
+            }
+        }
+        
+        return nearestNode;
+    }
+    
+    KdTreeNode* KdTree::nearestNodeInSubTree(const vector<FeatureType>& features, KdTreeNode* subTreeRoot) {
+        
+        KdTreeNode* node = subTreeRoot;
+        
+        if (subTreeRoot != NULL) {
+            
+            NodeDistanceType distance = Measurement::euclideanDistance(features, subTreeRoot->getFeatures());
+            
+            KdTreeNode* leftChild = subTreeRoot->getLeftChild();
+            
+            if (leftChild != NULL) {
+                
+                NodeDistanceType leftChildDistance = Measurement::euclideanDistance(features, leftChild->getFeatures());
+                
+                if (leftChildDistance < distance) {
+                    distance = leftChildDistance;
+                    node = leftChild;
+                }
+            }
+            
+            KdTreeNode* rightChild = subTreeRoot->getRightChild();
+            
+            if (rightChild != NULL) {
+                
+                NodeDistanceType rightChildDistance = Measurement::euclideanDistance(features, rightChild->getFeatures());
+                
+                if (rightChildDistance < distance) {
+                    distance = rightChildDistance;
+                    node = rightChild;
+                }
+            }
+        }
+        
+        return node;
+    }
+    
+    const bool KdTree::isFeatureNodeContained(const vector<FeatureType>& features) const {
+        
+        bool result = false;
+        
+        KdTreeNode* node = this->rootNode;
+        
+        while (node->isLeafNode() == false) {
+            
+            if (node->getFeatures() == features) {
+                result = true;
+                break;
+            }
+            
+            FeatureIndexType splitFeatureIndex = node->getSplitFeatureIndex();
+            
+            if (node->getSplitFeature() < features.at(splitFeatureIndex)) {
+                
+                if (node->getLeftChild() == NULL) {
+                    break;
+                }
+                
+                node = node->getLeftChild();
+            } else {
+                
+                if (node->getRightChild() == NULL) {
+                    break;
+                }
+                
+                node = node->getRightChild();
+            }
+        }
+        
+        if (result != true) {
+            
+            if (node->getFeatures() == features) {
+                result = true;
+            }
+        }
+        
+        return result;
     }
 }
 

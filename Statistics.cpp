@@ -6,25 +6,68 @@ namespace Math {
     
     using namespace std;
     
+    double sum(const vector<double>& values) {
+        
+        assert(values.size() > 0);
+        
+        double sumValue = 0;
+        
+        vector<double>::const_iterator vectorIterator;
+        
+        for (vectorIterator = values.begin(); vectorIterator != values.end(); ++vectorIterator) {
+            sumValue += *vectorIterator;
+        }
+        
+        return sumValue;
+    }
+    
+    double mean(const vector<double>& values) {
+        
+        assert(values.size() > 0);
+        
+        double result = 0;
+        
+        result = sum(values) / values.size();
+        
+        return result;
+    }
+    
+    double sumOfSquares(const vector<double>& values) {
+        
+        assert(values.size() > 0);
+        
+        double result = 0;
+        
+        vector<double>::const_iterator vectorIterator;
+        
+        for (vectorIterator = values.begin(); vectorIterator != values.end(); ++vectorIterator) {
+            result += pow(*vectorIterator, 2);
+        }
+        
+        return result;
+    }
+    
     double variance(const vector<double>& values) {
         
         assert(values.size() > 0);
         
-        double sumOfSquares = 0;
-        double mean = 0;
-        
-        vector<double>::const_iterator iterator;
-        
-        for (iterator = values.begin(); iterator != values.end(); ++iterator) {
-            sumOfSquares += pow((*iterator), 2);
-            mean += *iterator;
-        }
-        
-        mean /= values.size();
+        double sumOfSquaresValue = sumOfSquares(values);
+        double meanValue = mean(values);
         
         double result;
         
-        result = sumOfSquares - pow(mean, 2);
+        result = sumOfSquaresValue - pow(meanValue, 2);
+        
+        return result;
+    }
+    
+    double sampleStandardDeviation(const vector<double>& values) {
+        
+        assert(values.size() > 1);
+        
+        double result = 0;
+        
+        result = sqrt(variance(values) / (values.size() - 1));
         
         return result;
     }
@@ -36,15 +79,15 @@ namespace Math {
         
         size_t index = 0;
         
-        vector<double>::const_iterator iterator;
+        vector<double>::const_iterator vectorIterator;
         
-        for (iterator = values.begin(); iterator != values.end(); ++iterator) {
+        for (vectorIterator = values.begin(); vectorIterator != values.end(); ++vectorIterator) {
             
-            if (iterator == values.begin()) {
-                maxValue = *iterator;
+            if (vectorIterator == values.begin()) {
+                maxValue = *vectorIterator;
             } else {
-                if (*iterator > maxValue) {
-                    maxValue = *iterator;
+                if (*vectorIterator > maxValue) {
+                    maxValue = *vectorIterator;
                     maxIndex = index;
                 }
             }

@@ -1,4 +1,5 @@
 #include "KdTree.h"
+#include <iostream>
 
 using namespace std;
 
@@ -40,6 +41,19 @@ int main (int argc, char* argv[]) {
     KdTree tree;
     
     tree.build(featuresVector, categoriesVector);
+    
+    FeatureType arrayTest[] = {2, 4.5};
+    vector<FeatureType> vectorTest(arrayTest, arrayTest + 2);
+    
+    KdTreeNode *nearestNode = tree.nearestNode(vectorTest);
+    
+    vector<FeatureType> features = nearestNode->getFeatures();
+    
+    vector<FeatureType>::const_iterator vectorIterator;
+    
+    for (vectorIterator = features.begin(); vectorIterator != features.end(); ++vectorIterator) {
+        cout << *vectorIterator << endl;
+    }
     
     return 0;
 }

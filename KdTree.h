@@ -8,6 +8,7 @@ namespace std {
     
     using namespace std;
     
+    typedef unsigned long FeatureIndexType;
     typedef double FeatureType;
     typedef unsigned long NodeCategory;
     
@@ -24,27 +25,41 @@ namespace std {
         
         void swap(KdTreeNode& other);
         
+        void initRelatedTreeNode();
+        
         KdTreeNode(const KdTreeNode& rhs);
         KdTreeNode& operator=(const KdTreeNode& rhs);
+        
+        const FeatureIndexType getSplitFeatureIndex() const;
+        void setSplitFeatureIndex(FeatureIndexType splitFeatureIndex);
         
         inline const vector<FeatureType> getFeatures() const {
             return vector<FeatureType>(this->features);
         }
         
+        FeatureType getSplitFeature() const;
+        
         void setCategory(NodeCategory category);
         NodeCategory getCategory() const;
         
+        void setParent(KdTreeNode* node);
         void setLeftChild(KdTreeNode* node);
         void setRightChild(KdTreeNode* node);
         
+        KdTreeNode* getParent() const;
         KdTreeNode* getLeftChild() const;
         KdTreeNode* getRightChild() const;
         
+        const bool isLeafNode() const;
+        
     private:
+        
+        FeatureIndexType splitFeatureIndex;
         
         vector<FeatureType> features;
         NodeCategory category;
         
+        KdTreeNode *parent;
         KdTreeNode *leftChild;
         KdTreeNode *rightChild;
     };
@@ -60,6 +75,8 @@ namespace std {
         ~KdTree();
         
         void build(const vector< vector<FeatureType> >& featuresVector, const vector<NodeCategory>& categoriesVector);
+        
+        KdTreeNode* nearestNode(const vector<FeatureType>& features);
         
     private:
         KdTreeNode *rootNode;
@@ -127,6 +144,17 @@ namespace std {
         void qSort(vector<KdTreeNode>& nodes, DimensionNumber splitDimensionIndex);
         void quickSort(vector<KdTreeNode>& nodes, size_t low, size_t up, DimensionNumber splitDimensionIndex);
         size_t partition(vector<KdTreeNode>& nodes, size_t low, size_t up, DimensionNumber splitDimensionIndex);
+        
+        //Ignore middle node.
+        KdTreeNode* nearestLeafNode(const vector<FeatureType>& features);
+        
+        typedef double NodeDistanceType;
+        const bool isSearchNeededInBranch(NodeDistanceType nodeDistance, const vector<FeatureType>& features, KdTreeNode* node) const;
+        KdTreeNode* nearestNodeInBranch(const vector<FeatureType>& features, KdTreeNode*node, KdTreeNode* parent);
+        KdTreeNode* nearestNodeInSubTree(const vector<FeatureType>& features, KdTreeNode* subTreeRoot);
+        
+        const bool isFeatureNodeContained(const vector<FeatureType>& features) const;
+        
     };
     
 }
