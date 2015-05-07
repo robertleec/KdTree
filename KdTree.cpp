@@ -3,6 +3,7 @@
 #include "Measurement.h"
 #include <cmath>
 #include "assert.h"
+#include "MaxHeap.h"
 
 namespace std {
     
@@ -230,44 +231,6 @@ namespace std {
         return index0;
     }
     
-    KdTreeNode* KdTree::nearestNode(const vector<FeatureType>& features) {
-        
-        if (this->rootNode == NULL) {
-            return NULL;
-        }
-        
-        KdTreeNode* node = this->nearestLeafNode(features);
-        
-        NodeDistanceType distance = Measurement::euclideanDistance(features, node->getFeatures());
-        
-        KdTreeNode* searchPathDirectionNode = node;
-        KdTreeNode* searchPathNode = node->getParent();
-        
-        //Do search until root.
-        while (searchPathNode != NULL) {
-            
-            if (this->isSearchNeededInBranch(distance, features, searchPathNode) == true) {
-                
-                KdTreeNode* branchNode = this->nearestNodeInBranch(features, searchPathDirectionNode, searchPathNode);
-                
-                if (branchNode != NULL) {
-                    
-                    NodeDistanceType branchDistance = Measurement::euclideanDistance(features, branchNode->getFeatures());
-                    
-                    if (branchDistance < distance) {
-                        distance = branchDistance;
-                        node = branchNode;
-                    }
-                }
-            }
-            
-            searchPathDirectionNode = searchPathNode;
-            searchPathNode = searchPathNode->getParent();
-        }
-        
-        return node;
-    }
-    
     KdTreeNode* KdTree::nearestLeafNode(const vector<FeatureType>& features) {
         
         KdTreeNode* node = this->rootNode;
@@ -276,7 +239,7 @@ namespace std {
             
             FeatureIndexType splitFeatureIndex = node->getSplitFeatureIndex();
             
-            if (node->getSplitFeature() < features.at(splitFeatureIndex)) {
+            if (features.at(splitFeatureIndex) < node->getSplitFeature()) {
                 
                 if (node->getLeftChild() == NULL) {
                     break;
@@ -296,7 +259,7 @@ namespace std {
         return node;
     }
     
-    const bool KdTree::isSearchNeededInBranch(NodeDistanceType nodeDistance, const vector<FeatureType>& features, KdTreeNode* parent) const {
+    const bool KdTree::isSearchNeededInBranch(const KdTreeNodeMaxHeap& nodeMaxHeap, KdTreeNode* parent) const {
         
         bool result = false;
         
@@ -304,79 +267,15 @@ namespace std {
             
             FeatureIndexType splitFeatureIndex = parent->getSplitFeatureIndex();
             
-            NodeDistanceType splitFeatureDistance = fabs(features.at(splitFeatureIndex) - parent->getFeatures().at(splitFeatureIndex));
+            NodeDistanceType splitFeatureDistance = fabs(nodeMaxHeap.featuresCompared().at(splitFeatureIndex) - parent->getFeatures().at(splitFeatureIndex));
             
             //Ingore the same node distance between parent.
-            if (nodeDistance > splitFeatureDistance) {
+            if (nodeMaxHeap.maxDistanceCompared() > splitFeatureDistance) {
                 result = true;
             }
         }
         
         return result;
-    }
-    
-    KdTreeNode* KdTree::nearestNodeInBranch(const vector<FeatureType>& features, KdTreeNode* node, KdTreeNode* parent) {
-        
-        KdTreeNode* nearestNode = parent;
-        
-        if (parent != NULL) {
-            
-            NodeDistanceType distance = Measurement::euclideanDistance(features, parent->getFeatures());
-            
-            KdTreeNode* subTreeNode = NULL;
-            
-            if (node == parent->getLeftChild()) {
-                subTreeNode = this->nearestNodeInSubTree(features, parent->getRightChild());
-            } else {
-                subTreeNode = this->nearestNodeInSubTree(features, parent->getLeftChild());
-            }
-            
-            if (subTreeNode != NULL) {
-                NodeDistanceType subTreeNodeDistance = Measurement::euclideanDistance(features, subTreeNode->getFeatures());
-                
-                if (subTreeNodeDistance < distance) {
-                    nearestNode = subTreeNode;
-                }
-            }
-        }
-        
-        return nearestNode;
-    }
-    
-    KdTreeNode* KdTree::nearestNodeInSubTree(const vector<FeatureType>& features, KdTreeNode* subTreeRoot) {
-        
-        KdTreeNode* node = subTreeRoot;
-        
-        if (subTreeRoot != NULL) {
-            
-            NodeDistanceType distance = Measurement::euclideanDistance(features, subTreeRoot->getFeatures());
-            
-            KdTreeNode* leftChild = subTreeRoot->getLeftChild();
-            
-            if (leftChild != NULL) {
-                
-                NodeDistanceType leftChildDistance = Measurement::euclideanDistance(features, leftChild->getFeatures());
-                
-                if (leftChildDistance < distance) {
-                    distance = leftChildDistance;
-                    node = leftChild;
-                }
-            }
-            
-            KdTreeNode* rightChild = subTreeRoot->getRightChild();
-            
-            if (rightChild != NULL) {
-                
-                NodeDistanceType rightChildDistance = Measurement::euclideanDistance(features, rightChild->getFeatures());
-                
-                if (rightChildDistance < distance) {
-                    distance = rightChildDistance;
-                    node = rightChild;
-                }
-            }
-        }
-        
-        return node;
     }
     
     const bool KdTree::isFeatureNodeContained(const vector<FeatureType>& features) const {

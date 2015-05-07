@@ -1,3 +1,6 @@
+#ifndef __MEASUREMENT_H__
+#define __MEASUREMENT_H__
+
 #include <vector>
 #include <set>
 #include "Matrix.h"
@@ -56,3 +59,5 @@ namespace Measurement {
     PearsonCorrelationCoefficientValueType pearsonCorrelationCoefficient(const vector<DimensionValueType>& vector0, const vector<DimensionValueType>& vector1);
     
 }
+
+#endif

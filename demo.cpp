@@ -45,14 +45,23 @@ int main (int argc, char* argv[]) {
     FeatureType arrayTest[] = {2, 4.5};
     vector<FeatureType> vectorTest(arrayTest, arrayTest + 2);
     
-    KdTreeNode *nearestNode = tree.nearestNode(vectorTest);
+    vector<KdTreeNode> kNearestNodes = tree.nearestKNode(vectorTest, 5);
     
-    vector<FeatureType> features = nearestNode->getFeatures();
+    vector<KdTreeNode>::const_iterator treeNodeIterator;
     
-    vector<FeatureType>::const_iterator vectorIterator;
-    
-    for (vectorIterator = features.begin(); vectorIterator != features.end(); ++vectorIterator) {
-        cout << *vectorIterator << endl;
+    for (treeNodeIterator = kNearestNodes.begin(); treeNodeIterator != kNearestNodes.end(); ++treeNodeIterator) {
+        
+        KdTreeNode node = *treeNodeIterator;
+        
+        vector<FeatureType> features = node.getFeatures();
+        
+        vector<FeatureType>::const_iterator vectorIterator;
+        
+        for (vectorIterator = features.begin(); vectorIterator != features.end(); ++vectorIterator) {
+            cout << *vectorIterator << " ";
+        }
+        
+        cout << endl;
     }
     
     return 0;

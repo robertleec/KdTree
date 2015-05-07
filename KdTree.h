@@ -3,6 +3,10 @@
 
 #include <vector>
 #include "assert.h"
+#include "MaxHeap.h"
+#include "Measurement.h"
+#include <stack>
+#include "iostream"
 
 namespace std {
     
@@ -11,6 +15,7 @@ namespace std {
     typedef unsigned long FeatureIndexType;
     typedef double FeatureType;
     typedef unsigned long NodeCategory;
+    typedef double NodeDistanceType;
     
     class KdTreeNode {
         
@@ -52,6 +57,30 @@ namespace std {
         
         const bool isLeafNode() const;
         
+        friend bool operator>(const KdTreeNode& lhs, const KdTreeNode& rhs) {
+            
+            bool result = false;
+            
+            if (lhs.category > rhs.category) {
+                result = true;
+            } else {
+                
+                size_t size = lhs.features.size();
+                
+                for (size_t index = 0; index < size; ++index) {
+                    
+                    if (lhs.features.at(index) > rhs.features.at(index)) {
+                        result = true;
+                        break;
+                    }
+                    
+                }
+                
+            }
+            
+            return result;
+        }
+        
     private:
         
         FeatureIndexType splitFeatureIndex;
@@ -76,9 +105,125 @@ namespace std {
         
         void build(const vector< vector<FeatureType> >& featuresVector, const vector<NodeCategory>& categoriesVector);
         
-        KdTreeNode* nearestNode(const vector<FeatureType>& features);
+        //Maybe ignore some same distance nodes which have the greatest compare distance in max heap.
+        inline const vector<KdTreeNode> nearestKNode(const vector<FeatureType>& features, size_t k) {
+            
+            vector<KdTreeNode> result;
+            
+            KdTreeNodeMaxHeap nodeMaxHeap(k);
+            KdTreeNode objectNode(features);
+            nodeMaxHeap.assignDistanceComparingNode(objectNode);
+            
+            KdTreeNode* node = this->nearestLeafNode(features);
+            
+            nodeMaxHeap.addData(*node);
+            
+            KdTreeNode* searchPathDirectionNode = node;
+            KdTreeNode* searchPathNode = node->getParent();
+            
+            //Do search until root.
+            while (searchPathNode != NULL) {
+                
+                bool isNeedToSearchInBranch = false;
+                
+                if (nodeMaxHeap.isReachMaxNodeNumber() == false) {
+                    isNeedToSearchInBranch = true;
+                } else {
+                    
+                    if (this->isSearchNeededInBranch(nodeMaxHeap, searchPathNode) == true) {
+                        isNeedToSearchInBranch = true;
+                    }
+                    
+                }
+                
+                if (isNeedToSearchInBranch == true) {
+                    
+                    nodeMaxHeap.addData(*searchPathNode);
+                    
+                    if (searchPathDirectionNode == searchPathNode->getLeftChild()) {
+                        
+                        if (searchPathNode->getRightChild() != NULL) {
+                            vector<KdTreeNode> rightTreeNodes = this->getTreeNodes(searchPathNode->getRightChild());
+                            
+                            vector<KdTreeNode>::const_iterator treeNodeIterator;
+                            
+                            for (treeNodeIterator = rightTreeNodes.begin(); treeNodeIterator != rightTreeNodes.end(); ++treeNodeIterator) {
+                                nodeMaxHeap.addData(*treeNodeIterator);
+                            }
+                        }
+                        
+                    } else {
+                        
+                        if (searchPathNode->getLeftChild() != NULL) {
+                            vector<KdTreeNode> leftTreeNodes = this->getTreeNodes(searchPathNode->getLeftChild());
+                            
+                            vector<KdTreeNode>::const_iterator treeNodeIterator;
+                            
+                            for (treeNodeIterator = leftTreeNodes.begin(); treeNodeIterator != leftTreeNodes.end(); ++treeNodeIterator) {
+                                nodeMaxHeap.addData(*treeNodeIterator);
+                            }
+                            
+                        }
+                        
+                    }
+                }
+                
+                searchPathDirectionNode = searchPathNode;
+                searchPathNode = searchPathNode->getParent();
+            }
+            
+            result = nodeMaxHeap.getAllData();
+            
+            return vector<KdTreeNode>(result);
+        }
         
     private:
+        
+        class KdTreeNodeMaxHeap: public MaxHeap<KdTreeNode> {
+            
+        public:
+            
+            KdTreeNodeMaxHeap(size_t limitedNodesNumber):MaxHeap<KdTreeNode>(limitedNodesNumber) {
+            
+            }
+            
+            bool isNodeGreaterThanAnother(const KdTreeNode& node0, const KdTreeNode& node1) {
+                
+                bool result = false;
+                
+                NodeDistanceType distance0 = Measurement::euclideanDistance(node0.getFeatures(), distanceComparingNode.getFeatures());
+                
+                NodeDistanceType distance1 = Measurement::euclideanDistance(node1.getFeatures(), distanceComparingNode.getFeatures());
+                
+                if (distance0 > distance1) {
+                    result = true;
+                }
+                
+                return result;
+            }
+            
+            void assignDistanceComparingNode(const KdTreeNode& node) {
+                this->distanceComparingNode = node;
+            }
+            
+            inline const vector<FeatureType> featuresCompared() const {
+                return distanceComparingNode.getFeatures();
+            }
+            
+            inline const NodeDistanceType maxDistanceCompared() const {
+                
+                KdTreeNode topNode = this->maxData();
+                
+                NodeDistanceType distance = Measurement::euclideanDistance(topNode.getFeatures(), distanceComparingNode.getFeatures());
+                
+                return distance;
+            }
+            
+        private:
+            
+            KdTreeNode distanceComparingNode;
+        };
+        
         KdTreeNode *rootNode;
         
         void deleteTree(KdTreeNode *treeRoot);
@@ -145,18 +290,47 @@ namespace std {
         void quickSort(vector<KdTreeNode>& nodes, size_t low, size_t up, DimensionNumber splitDimensionIndex);
         size_t partition(vector<KdTreeNode>& nodes, size_t low, size_t up, DimensionNumber splitDimensionIndex);
         
-        //Ignore middle node.
+        //Ignore middle same compare distance node.
         KdTreeNode* nearestLeafNode(const vector<FeatureType>& features);
         
-        typedef double NodeDistanceType;
-        const bool isSearchNeededInBranch(NodeDistanceType nodeDistance, const vector<FeatureType>& features, KdTreeNode* node) const;
-        KdTreeNode* nearestNodeInBranch(const vector<FeatureType>& features, KdTreeNode*node, KdTreeNode* parent);
-        KdTreeNode* nearestNodeInSubTree(const vector<FeatureType>& features, KdTreeNode* subTreeRoot);
+        const bool isSearchNeededInBranch(const KdTreeNodeMaxHeap& nodeMaxHeap, KdTreeNode* node) const;
         
         const bool isFeatureNodeContained(const vector<FeatureType>& features) const;
         
+        inline const vector<KdTreeNode> getTreeNodes(KdTreeNode* treeRootNode) const {
+            
+            vector<KdTreeNode> treeNodes;
+            
+            stack<KdTreeNode*> path;
+            
+            KdTreeNode* node = treeRootNode;
+            
+            while (node != NULL) {
+                path.push(node);
+                node = node->getLeftChild();
+            }
+            
+            while (path.empty() == false) {
+                
+                node = path.top();
+                treeNodes.push_back(*node);
+                path.pop();
+                
+                if (node->getRightChild() != NULL) {
+                    
+                    node = node->getRightChild();
+                    
+                    while (node != NULL) {
+                        path.push(node);
+                        node = node->getLeftChild();
+                    }
+                }
+            }
+            
+            return vector<KdTreeNode>(treeNodes);
+        }
     };
-    
+
 }
 
 namespace std {
